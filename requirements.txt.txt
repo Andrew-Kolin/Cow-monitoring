@@ -1,0 +1,5 @@
+ultralytics
+flask
+flask-sqlalchemy
+opencv-python-headless
+pillow

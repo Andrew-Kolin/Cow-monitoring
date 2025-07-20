@@ -1,0 +1,91 @@
+import os
+import cv2
+import numpy as np
+from datetime import datetime
+from flask import Flask, request, jsonify, render_template
+from ultralytics import YOLO
+from database import db, DetectionHistory
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///history.db'
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['RESULT_FOLDER'] = 'static/results'
+db.init_app(app)
+
+# Создаем папки если их нет
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['RESULT_FOLDER'], exist_ok=True)
+
+# Загрузка модели YOLOv8
+model = YOLO('yolov8n.pt')
+COW_CLASS_ID = 19  # ID класса "корова" в COCO
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/process', methods=['POST'])
+def process_image():
+    if 'image' not in request.files:
+        return jsonify({'error': 'No image uploaded'}), 400
+        
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'error': 'No selected image'}), 400
+
+    # Сохраняем оригинальное изображение
+    filename = f"{datetime.now().strftime('%Y%m%d%H%M%S')}_{file.filename}"
+    original_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    file.save(original_path)
+    
+    # Обработка изображения
+    img = cv2.imread(original_path)
+    results = model(img)
+    
+    # Фильтруем только коров
+    cow_results = []
+    for result in results:
+        boxes = result.boxes
+        for box in boxes:
+            if box.cls == COW_CLASS_ID and box.conf > 0.5:  # Фильтр по классу и уверенности
+                cow_results.append({
+                    'xyxy': box.xyxy[0].tolist(),
+                    'conf': float(box.conf)
+                })
+    
+    # Визуализация результатов
+    output_img = img.copy()
+    for cow in cow_results:
+        x1, y1, x2, y2 = map(int, cow['xyxy'])
+        cv2.rectangle(output_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(output_img, f'cow: {cow["conf"]:.2f}', 
+                   (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0,255,0), 2)
+    
+    # Сохраняем результат
+    result_path = os.path.join(app.config['RESULT_FOLDER'], filename)
+    cv2.imwrite(result_path, output_img)
+    
+    # Сохраняем в базу данных
+    record = DetectionHistory(
+        timestamp=datetime.now(),
+        cow_count=len(cow_results),
+        original_path=original_path,
+        result_path=result_path
+    )
+    db.session.add(record)
+    db.session.commit()
+    
+    return jsonify({
+        'count': len(cow_results),
+        'result_image': result_path
+    })
+
+@app.route('/history')
+def history():
+    records = DetectionHistory.query.order_by(DetectionHistory.timestamp.desc()).all()
+    return render_template('history.html', records=records)
+
+if __name__ == '__main__':
+    with app.app_context():
+        db.create_all()
+    app.run(host='0.0.0.0', port=5000, debug=True)

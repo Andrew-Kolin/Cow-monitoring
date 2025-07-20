@@ -1,0 +1,10 @@
+from flask_sqlalchemy import SQLAlchemy
+
+db = SQLAlchemy()
+
+class DetectionHistory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False)
+    cow_count = db.Column(db.Integer, nullable=False)
+    original_path = db.Column(db.String(200), nullable=False)
+    result_path = db.Column(db.String(200), nullable=False)
