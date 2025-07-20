@@ -1,1 +1,38 @@
-
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>История</title>
+    <style>
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        img { max-width: 200px; max-height: 150px; }
+    </style>
+</head>
+<body>
+    <h1>История мониторинга</h1>
+    <a href="/"><button>На главную</button></a>
+    
+    <table>
+        <thead>
+            <tr>
+                <th>Дата</th>
+                <th>Количество коров</th>
+                <th>Исходное изображение</th>
+                <th>Результат</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for record in records %}
+            <tr>
+                <td>{{ record.timestamp.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>{{ record.cow_count }}</td>
+                <td><img src="{{ record.original_path }}" alt="Original"></td>
+                <td><img src="{{ record.result_path }}" alt="Result"></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>
